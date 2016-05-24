@@ -27,7 +27,7 @@ int *V; // Custo de cada subconjunto
 int *C; // Conta em quantos subconjutos da solução atual o elemento j está
 
 int seed=123456;
-int kFlips=0;
+int kFlips=10;
 
 int main(){
   cin >> m >> n;
@@ -45,9 +45,10 @@ int main(){
 int ILS(bool *S){
   int limiteSemMelhora = 1, countSemMelhora=0,custoAtual,novoCusto;
 
-  custoAtual = valorSolucao(S);
+  custoAtual = valorSolucao(S); // S é inicializado com todos bits == 1
   S = busca_local(S,custoAtual);
   updateCountElementos(sIndice);
+  custoAtual = valorSolucao(S);
 
   while(countSemMelhora < limiteSemMelhora){
     S_ = perturbar(S);
