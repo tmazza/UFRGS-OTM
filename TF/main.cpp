@@ -10,25 +10,31 @@ void init();
 void end();
 bool** alocaMatriz();
 
+int getCustoRemocao(int i);
 int valorSolucao(bool* Sol);
-bool* busca_local(bool* Sol,int sAtual);
+int busca_local(bool* Sol,int sAtual);
 bool* perturbar(bool* Sol);
 bool* copiaSolucao(bool* S_);
 
 void atualizaContagemDeElementos(bool* S);
-bool isUmaSolucao(int i);
 
 int ILS(bool *S);
 
 int m,n; // quantidade de elementos, quantidade de subconjunos,solução atual,incice para flip
 bool **R; // Define se conjunto i+1 possui elemento j+1
-bool *S,*S_; // Solução corrente, solução sendo avaliada
+bool *S,*S_; //   Solução corrente, solução sendo avaliada
 int *V; // Custo de cada subconjunto
 int *C; // Conta em quantos subconjutos da solução atual o elemento j está
 
 int seed;
 int penalizacaoPorElemento = 10;
-int kFlips=10;
+float kFlips=0;
+
+bool isSolucao(){
+  for(int j=0;j<m;j++)
+    if(C[j]<=0) return false;
+  return true;
+}
 
 int main(){
   seed = 123456;
@@ -45,47 +51,69 @@ int main(){
  * Buca local: best improvement
  */
 int ILS(bool *S){
-  int limiteSemMelhora = 10000, countSemMelhora=0,custoAtual,novoCusto;
+  int limiteSemMelhora = 100, countSemMelhora=0,custoAtual,novoCusto;
 
-  custoAtual = valorSolucao(S); // S é inicializado com todos bits == 1
-  S = busca_local(S,custoAtual);
-  custoAtual = valorSolucao(S);
+  custoAtual = valorSolucao(S); // Todo os bits são 1
+  custoAtual = busca_local(S,custoAtual);
+
   while(countSemMelhora < limiteSemMelhora){
     S_ = perturbar(S);
     novoCusto = valorSolucao(S_);
-    S_ = busca_local(S_,custoAtual);
-    novoCusto = valorSolucao(S_);
+
+    novoCusto = busca_local(S_,novoCusto);
 
     countSemMelhora++;
     if(novoCusto < custoAtual){
-      //cout << "CHANTE";
       S = copiaSolucao(S_);
       custoAtual = novoCusto;
+      cout << countSemMelhora << " | NC: " << custoAtual << " | SOL: " << isSolucao() << endl;
       countSemMelhora = 0;
     }
-
-    cout << endl << "-----------------" << endl;
-
   }
   return custoAtual;
 }
 
 /**
+ * Best improvement
+ */
+int busca_local(bool *Sol,int sAtual){
+  int melhor,nova;
+  int indice=-1;
+  melhor = sAtual;
+  for(int i=0;i<n;i++){
+    if(Sol[i]){ // após flip subconjunto será removido
+      nova = sAtual - V[i] + getCustoRemocao(i);
+    } else { // após flip subconjunto será adicionado
+      nova = sAtual + V[i];
+    }
+    if(nova < melhor){
+      melhor = nova;
+      indice = i;
+    }
+  }
+  if(indice != -1) // Aplica flip
+    Sol[indice]=!Sol[indice];
+
+  return melhor;
+}
+
+/**
+ * Calcula o custo/valor de uma solução
  * Soma dos custos dos subconjuntos contidos na solução
  * + penalização por elemento faltando na solução
  */
 int valorSolucao(bool *Sol){
   atualizaContagemDeElementos(Sol);
+
   int soma=0;
   for(int i=0;i<n;i++) // Soma custo dos subconjuntos da solução
     if(Sol[i])
       soma+=V[i];
-  for(int j=0;j<m;j++) // Penaliza por elemento faltando
+  for(int j=0;j<m;j++){ // Inclui penalização para cada elemento que não está na solução
     if(C[j] <= 0){
-      cout << "PENA";
       soma+=penalizacaoPorElemento;
     }
-
+  }
   return soma;
 }
 
@@ -116,7 +144,8 @@ bool* perturbar(bool* Sol){
   srand48(seed);
   seed+=100;
   seed=seed%999999;
-  for(int i=0;i<kFlips;i++){
+  int flips = (int) n * kFlips;
+  for(int i=0;i<flips;i++){
     int indice = (int) (drand48() * n);
     S_[indice] = !S_[indice];
   }
@@ -134,53 +163,17 @@ bool* copiaSolucao(bool* Sol){
 }
 
 /**
- * Testa se solução S com flip em i é valida
- * Testa se todos os elementos de S[i] estão contidos em algum
- * dos demias sub conjuntos de S
- */
-bool isUmaSolucao(int i){
-  for(int j=0;j<m;j++){ // Se j em SCi e SCi vai ser removido então j deve estar em algum outro SC de S
-    if(R[i][j] && (C[j]-1 <= 0))
-      return false;
-  }
-  return true;
-}
-
-/**
  * Calcula o custo da remoção do subconjunto incluindo uma penalização(por elemento) caso
  * algum elemento deixe de ser coberto.
  */
 int getCustoRemocao(int i){
-  int custo = V[i]; // Custo do subconjunto
+  int custo = 0;
   for(int j=0;j<m;j++){
     if(R[i][j] && (C[j]-1 <= 0) ){ // Após remoção S deixa de ser solução então penaliza operação
-      custo-=penalizacaoPorElemento;
+      custo+=penalizacaoPorElemento;
     }
   }
   return custo;
-}
-
-/**
- * Best improvement
- */
-bool* busca_local(bool *Sol,int sAtual){
-  int melhor,nova;
-  int indice=-1;
-  melhor = sAtual;
-  for(int i=0;i<n;i++){
-    if(Sol[i]){ // após flip subconjunto será removido
-      nova = sAtual - getCustoRemocao(i);
-    } else { // após flip subconjunto será adicionado
-      nova = sAtual + V[i];
-    }
-    if(nova < melhor){
-      melhor = nova;
-      indice = i;
-    }
-  }
-  if(indice != -1) // Aplica flip
-    Sol[indice]=!Sol[indice];
-  return Sol;
 }
 
 /**
