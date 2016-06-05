@@ -2,6 +2,7 @@
 #include <malloc.h>
 #include <cstdlib>
 #include <time.h>
+#include <stdio.h>
 
 using namespace std;
 
@@ -23,19 +24,46 @@ bool *S,*S_; //   Solução corrente, solução sendo avaliada
 int *V; // Custo de cada subconjunto
 int *C; // Conta em quantos subconjutos da solução atual o elemento j está
 
-int seed = 987654;
+int seed;
 int penalizacaoPorElemento = 2;
-float kFlips=1;
-int limiteSemMelhora = 100;
+float kFlips;
+int limiteSemMelhora = 1000;
+int tempoLimite = 1800;
+clock_t begin_time;
+float tempoDecorrido;
+bool flatExcedido;
 
+void doAll(int k){
+  kFlips = k;
 
-int main(){
-  const clock_t begin_time = clock();
+  int seeds[10] = {123456,578459,543210,567891,987654,987515,412875,165873,985128,247551};
+  int resultado;
+  float tempo;
+  int startSeed;
+
+  for(int iSeed=0;iSeed<3;iSeed++){
+    begin_time = clock();
+    flatExcedido = false;
+
+    for(int i=0;i<n;i++){  S[i]=0; }
+    startSeed = seed = seeds[iSeed];
+    resultado = ILS(S);
+
+    tempo = int( clock () - begin_time ) /  CLOCKS_PER_SEC;
+    printf("\n%d,%d,%d,%f,%c",k,startSeed,resultado,tempo,flatExcedido?'*':'N');
+  }
+
+  printf("\n\n");
+}
+
+int main(int argc, char* argv[]){
   cin >> m >> n;
+  cout << "K,Seed,Melhor,Tempo,limite tempo execido? ";
   init();
-  cout << "Best find:" << ILS(S) << endl;
+  doAll(4);
+  doAll(16);
+  doAll(64);
   end();
-  cout << "Total time: " << float( clock () - begin_time ) /  CLOCKS_PER_SEC << "s" << endl;
   return 0;
 }
 
@@ -63,23 +91,35 @@ int ILS(bool *S){
   int countSemMelhora=0,custoAtual,novoCusto;
 
   cin >> m >> n;
-
   custoAtual = valorSolucao(S); // Todo os bits são 1
+  if(custoAtual == -1){
+    flatExcedido=true;
+    return -1;
+  }
+
   custoAtual = busca_local(S,custoAtual);
-  cout << countSemMelhora << " | -Current: " << custoAtual << endl;
 
   while(countSemMelhora < limiteSemMelhora){
+
+    // Controle de tempo
+    if(countSemMelhora % 10 == 0){
+      tempoDecorrido = (float( clock () - begin_time ) /  CLOCKS_PER_SEC);
+      if(tempoDecorrido >= tempoLimite){
+        flatExcedido=true;
+        return custoAtual;
+      }
+    }
+
     S_ = perturbar(S);
     novoCusto = valorSolucao(S_);
-    cout << custoAtual << "|" << novoCusto << "  " << endl;
     novoCusto = busca_local(S_,novoCusto);
 
     countSemMelhora++;
-    cout << countSemMelhora << "|";
+    // cout << countSemMelhora << "|" << custoAtual << "|" << novoCusto << " | Tempo: " << tempoDecorrido << endl ;
     if(novoCusto < custoAtual){
        copiaSolucao(S_,S);
        custoAtual = novoCusto;
-       cout << " | Current: " << custoAtual << endl;
+       //cout << "       | NOVO: " << custoAtual  << endl;
        countSemMelhora = 0;
     }
   }
@@ -90,6 +130,13 @@ int ILS(bool *S){
  * Best improvement
  */
 int busca_local(bool *Sol,int sAtual){
+
+  tempoDecorrido = (float( clock () - begin_time ) /  CLOCKS_PER_SEC);
+  if(tempoDecorrido >= tempoLimite){
+    flatExcedido=true;
+    return -1;
+  }
+
   int valorBase,nova;
   int indice=-1;
   valorBase = valorSolucao(Sol);
@@ -119,7 +166,7 @@ int busca_local(bool *Sol,int sAtual){
 }
 
 /**
- * Calcula o custo/valor de uma solução:
+ * Calcula o custo/valor de uma soluç1ão:
  * Soma dos custos dos subconjuntos contidos na solução
  * + penalização por elemento faltando na solução
  */
@@ -132,7 +179,7 @@ int valorSolucao(bool *Sol){
   int qtdCobertura; // Quantidade de subconjuntos que um elemento está sendo coberto
   for(int j=0;j<m;j++){
     qtdCobertura=0;
-    for(int i=0;i<n;i++){
+    for(int i=01;i<n;i++){
       if(Sol[i] && R[i][j]){ // subconjunto i é parte da solução e contém elemento j
         qtdCobertura++;
       }
@@ -146,20 +193,23 @@ int valorSolucao(bool *Sol){
 }
 
 /**
- * Copia S para S_ com alguns bits alterados. Só altera o bit se S_ se mantém uma solução válida
- * Altera kFlips bits de S garantindo que o novo S gerado seja uma solução
+ * Copia S para S_ com alguns bits alterados.
  */
 bool* perturbar(bool* Sol){
   for(int i=0;i<n;i++)
     S_[i] = Sol[i];
   srand48(seed);
-  seed+=100;
+  seed+=10;
   seed=seed%999999;
   // int flips = (int) n * kFlips;
   int flips = kFlips;
-  for(int i=0;i<flips;i++){
+  int i=0;
+  while(i<flips){
     int indice = (int) (drand48() * n);
-    S_[indice] = !S_[indice];
+    if(S_[indice]){
+      S_[indice] = S_[indice]?false:true;
+    }
+    i++;
   }
   return S_;
 }
@@ -209,6 +259,7 @@ void end(){
   free(S_);
   free(C);
   free(R);
+  cout << endl;
 }
 
 bool** alocaMatriz(){
